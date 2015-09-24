@@ -1,39 +1,46 @@
 package net.codesup.restbinder.client;
 
+import java.net.URI;
+
 /**
- * Created by klemm0 on 2015-09-22.
+ * @author Mirko Klemm 2015-09-23
  */
-public interface Link<P,S> {
-	class Multiplicity {
-		public static final int UNBOUNDED = Integer.MAX_VALUE;
-		private final int lowerBound;
-		private final int upperBound;
+public class Link<P,S> {
+	private final LinkDescriptor<P,S> descriptor;
+	private final WebDocument<P> parent;
+	private final URI href;
+	private final String title;
+	private final String role;
 
-		public Multiplicity(final int lowerBound, final int upperBound) {
-			this.lowerBound = lowerBound;
-			this.upperBound = upperBound;
-		}
-
-		public int getLowerBound() {
-			return this.lowerBound;
-		}
-
-		public int getUpperBound() {
-			return this.upperBound;
-		}
+	Link(final LinkDescriptor<P, S> descriptor, final WebDocument<P> parent, final URI href, final String title, final String role) {
+		this.descriptor = descriptor;
+		this.parent = parent;
+		this.href = href;
+		this.title = title;
+		this.role = role;
 	}
 
-	Multiplicity getMultiplicity();
+	public LinkDescriptor<P, S> getDescriptor() {
+		return this.descriptor;
+	}
 
-	boolean isCollection();
+	public WebDocument<P> getParent() {
+		return this.parent;
+	}
 
-	String getRole();
+	public URI getHref() {
+		return this.href;
+	}
 
-	String getTitle();
+	public String getTitle() {
+		return this.title;
+	}
 
-	Class<P> getParentType();
+	public String getRole() {
+		return this.role;
+	}
 
-	Class<S> getSupplierType();
-
-	Object resolve(final P parent);
+	public WebDocument<S> resolve() {
+		return this.parent.getDocumentDescriptor().getClientSession().get(this.href);
+	}
 }
