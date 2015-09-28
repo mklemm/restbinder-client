@@ -90,6 +90,12 @@
 
 	<dependencies>
 		<dependency>
+			<groupId>com.sun.jersey</groupId>
+			<artifactId>jersey-server</artifactId>
+			<version>1.17</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.8.2</version>
@@ -101,6 +107,66 @@
 	<build>
 		<defaultGoal>install</defaultGoal>
 		<plugins>
+			<plugin>
+				<groupId>org.jvnet.jaxb2.maven2</groupId>
+				<artifactId>maven-jaxb2-plugin</artifactId>
+				<version>0.11.0</version>
+				<executions>
+					<execution>
+						<id>xsd-generate-2.2</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>generate</goal>
+						</goals>
+						<configuration>
+							<schemaDirectory>${basedir}/src/main/resources</schemaDirectory>
+							<generateDirectory>${project.build.directory}/generated-sources/xjc</generateDirectory>
+						</configuration>
+					</execution>
+					<execution>
+						<id>xsd-test-generate-2.2</id>
+						<phase>generate-test-sources</phase>
+						<goals>
+							<goal>generate</goal>
+						</goals>
+						<configuration>
+							<schemaDirectory>${basedir}/src/test/resources</schemaDirectory>
+							<generateDirectory>${project.build.directory}/generated-test-sources/xjc</generateDirectory>
+							<addTestCompileSourceRoot>true</addTestCompileSourceRoot>
+						</configuration>
+					</execution>
+				</executions>
+				<configuration>
+					<strict>true</strict>
+					<verbose>true</verbose>
+					<extension>true</extension>
+					<removeOldOutput>true</removeOldOutput>
+					<specVersion>2.2</specVersion>
+					<useDependenciesAsEpisodes>true</useDependenciesAsEpisodes>
+					<scanDependenciesForBindings>false</scanDependenciesForBindings>
+					<args>
+						<arg>-Xcopy</arg>
+						<arg>-Xfluent-builder</arg>
+						<arg>-Xgroup-contract</arg>
+						<arg>-declareSetters=false</arg>
+						<arg>-Ximmutable</arg>
+						<arg>-Xformat</arg>
+						<arg>-Xmodifier</arg>
+					</args>
+					<plugins>
+						<plugin>
+							<groupId>net.codesup.util</groupId>
+							<artifactId>jaxb2-rich-contract-plugin</artifactId>
+							<version>1.6.10</version>
+						</plugin>
+						<plugin>
+							<groupId>com.kscs.util</groupId>
+							<artifactId>jaxb-format-plugin</artifactId>
+							<version>1.0.1</version>
+						</plugin>
+					</plugins>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>

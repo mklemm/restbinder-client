@@ -5,22 +5,24 @@ import java.net.URI;
 /**
  * @author Mirko Klemm 2015-09-23
  */
-public class Link<P,S> {
-	private final LinkDescriptor<P,S> descriptor;
+public class Link<P> {
+	private final LinkDescriptor<P> descriptor;
 	private final WebDocument<P> parent;
 	private final URI href;
 	private final String title;
 	private final String role;
+	private final String arcRole;
 
-	Link(final LinkDescriptor<P, S> descriptor, final WebDocument<P> parent, final URI href, final String title, final String role) {
+	Link(final LinkDescriptor<P> descriptor, final WebDocument<P> parent, final URI href, final String title, final String role, final String arcRole) {
 		this.descriptor = descriptor;
 		this.parent = parent;
 		this.href = href;
 		this.title = title;
 		this.role = role;
+		this.arcRole = arcRole;
 	}
 
-	public LinkDescriptor<P, S> getDescriptor() {
+	public LinkDescriptor<P> getDescriptor() {
 		return this.descriptor;
 	}
 
@@ -40,7 +42,11 @@ public class Link<P,S> {
 		return this.role;
 	}
 
-	public WebDocument<S> resolve() {
-		return this.parent.getDocumentDescriptor().getClientSession().get(this.href);
+	public String getArcRole() {
+		return this.arcRole;
+	}
+
+	public <S> WebDocument<S> resolve(final Class<S> supplierType) {
+		return this.parent.getDocumentDescriptor().getClientSession().get(supplierType, this.href);
 	}
 }

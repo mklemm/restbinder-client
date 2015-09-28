@@ -1,11 +1,12 @@
 package net.codesup.restbinder.client.http;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
+import java.net.URI;
 import java.net.URL;
 
-import net.codesup.restbinder.client.RestBinderException;
+import net.codesup.restbinder.client.util.RestBinderException;
 
 /**
  * @author Mirko Klemm 2015-09-22
@@ -17,10 +18,29 @@ public class HttpClient {
 
 	public HttpResponse execute(final HttpRequest request) {
 		final HttpURLConnection urlConnection = createConnection(request);
+		final URI uri = request.getUri();
 		try {
-			return new HttpResponse(urlConnection.getURL().toURI(), urlConnection.getInputStream(), urlConnection.getResponseCode(), urlConnection.getResponseMessage(), urlConnection.getHeaderFields());
-		} catch (IOException | URISyntaxException e) {
-			throw new RestBinderException(e);
+			return new HttpResponse(request, urlConnection.getInputStream(), urlConnection.getResponseCode(), urlConnection.getResponseMessage(), urlConnection.getHeaderFields());
+		} catch(final FileNotFoundException e) {
+			try {
+				return new HttpResponse(request, urlConnection.getErrorStream(), urlConnection.getResponseCode(), urlConnection.getResponseMessage(), urlConnection.getHeaderFields());
+			} catch(final IOException ex) {
+				throw new RestBinderException(ex);
+			}
+		} catch (final IOException e) {
+			try {
+				if (urlConnection.getResponseCode() >= 400) {
+					try {
+						return new HttpResponse(request, urlConnection.getErrorStream(), urlConnection.getResponseCode(), urlConnection.getResponseMessage(), urlConnection.getHeaderFields());
+					} catch (final IOException ex) {
+						throw new RestBinderException(ex);
+					}
+				} else {
+					throw new RestBinderException(e);
+				}
+			} catch(final IOException iox) {
+				throw new RestBinderException(iox);
+			}
 		}
 	}
 
@@ -30,16 +50,23 @@ public class HttpClient {
 			final HttpURLConnection urlConnection = (HttpURLConnection)url.openConnection();
 			urlConnection.setRequestMethod(request.getMethod());
 			urlConnection.setUseCaches(request.isUseCaches());
-			urlConnection.setChunkedStreamingMode(request.getChunkSize());
-			urlConnection.setFixedLengthStreamingMode(request.getContentLength());
+			if(request.getChunkSize() > -1) {
+				urlConnection.setChunkedStreamingMode(request.getChunkSize());
+			} else if(request.getContentLength() > -1) {
+				urlConnection.setFixedLengthStreamingMode(request.getContentLength());
+			}
 			urlConnection.setInstanceFollowRedirects(true);
-			urlConnection.setConnectTimeout(request.getConnectTimeout());
-			urlConnection.setReadTimeout(request.getReadTimeout());
+			if(request.getConnectTimeout() > -1) {
+				urlConnection.setConnectTimeout(request.getConnectTimeout());
+			}
+			if(request.getReadTimeout() > -1) {
+				urlConnection.setReadTimeout(request.getReadTimeout());
+			}
 			urlConnection.setAllowUserInteraction(request.isAllowUserInteraction());
 			urlConnection.setDoInput(request.isDoInput());
 			urlConnection.setDoOutput(request.isDoOutput());
-			for(final Header header : request.getHeaders().values()) {
-				urlConnection.addRequestProperty(header.getKey(), header.getValue());
+			for(final HeaderField headerField : request.getHeaders()) {
+				urlConnection.addRequestProperty(headerField.getKey(), headerField.getValue());
 			}
 			return urlConnection;
 		} catch (final IOException e) {

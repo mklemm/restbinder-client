@@ -8,6 +8,8 @@ import java.util.WeakHashMap;
 import net.codesup.restbinder.client.http.HttpClient;
 import net.codesup.restbinder.client.http.HttpRequest;
 import net.codesup.restbinder.client.http.HttpResponse;
+import net.codesup.restbinder.client.http.HttpStatusCategory;
+import net.codesup.restbinder.client.jaxb.JaxbMediaType;
 import net.codesup.restbinder.client.http.MediaType;
 
 /**
@@ -35,14 +37,11 @@ public class ClientSession {
 
 	private final Map<URI,WebDocument<?>> webDocumentCache = new WeakHashMap<>();
 	private final Map<MediaType, DocumentDescriptor<?>> documentDescriptors = new HashMap<>();
-	private final Map<MediaType, MessageBodyHandler> messageBodyHandlers = new HashMap<>();
 	private final HttpClient httpClient = new HttpClient();
-	private final MessageBodyHandlerFactory messageBodyHandlerFactory;
 	private final DocumentDescriptorFactory documentDescriptorFactory;
 	private final long maxAgeInCache;
 
-	public ClientSession(final MessageBodyHandlerFactory messageBodyHandlerFactory, final DocumentDescriptorFactory documentDescriptorFactory, final long maxAgeInCache) {
-		this.messageBodyHandlerFactory = messageBodyHandlerFactory;
+	public ClientSession(final DocumentDescriptorFactory documentDescriptorFactory, final long maxAgeInCache) {
 		this.documentDescriptorFactory = documentDescriptorFactory;
 		this.maxAgeInCache = maxAgeInCache;
 	}
@@ -54,31 +53,43 @@ public class ClientSession {
 	 * @return
 	 */
 	@SuppressWarnings("unchecked")
-	public <T> WebDocument<T> get(final URI uri) {
+	public <T> WebDocument<T> get(final Class<T> requestedType, final URI uri) {
 		WebDocument<T> webDocument = (WebDocument<T>)this.webDocumentCache.get(uri);
 		if(webDocument == null || webDocument.isExpired()) {
-			final HttpResponse httpResponse = this.httpClient.execute(ClientSession.DEFAULT_GET_BUILDER.withUri(uri).build());
-			webDocument = getMessageBodyHandler(httpResponse).handle(this, httpResponse);
+			final HttpRequest request = ClientSession.DEFAULT_GET_BUILDER.withAccept(new JaxbMediaType<>(requestedType)).withUri(uri).build();
+			final HttpResponse httpResponse = this.httpClient.execute(request);
+			webDocument = this.getDocumentDescriptor(requestedType, httpResponse.getContentType()).unmarshal(httpResponse);
+			if(httpResponse.getStatus() == HttpStatusCategory.SUCCESS) {
+				this.webDocumentCache.put(uri, webDocument);
+			} else {
+				throw new DocumentResponseException(httpResponse);
+			}
 		}
 		return webDocument;
 	}
 
-	public <T> DocumentDescriptor<T> getDocumentDescriptor(final MediaType contentType) {
+	public <T> void put(final WebDocument<T> webDocument) {
+		final HttpRequest request = ClientSession.DEFAULT_PUT_BUILDER.withUri(webDocument.getUri()).build();
+
+	}
+
+	public <T> WebDocument post(final URI uri, final T content) {
+		final HttpRequest request = ClientSession.DEFAULT_POST_BUILDER.withUri(uri).build();
+		return null; // TODO
+	}
+
+	public <T> void delete(final WebDocument<T> webDocument) {
+		final HttpRequest request = ClientSession.DEFAULT_POST_BUILDER.withUri(webDocument.getUri()).build();
+
+	}
+
+	public <T> DocumentDescriptor<T> getDocumentDescriptor(final Class<T> requestedType, final MediaType contentType) {
 		@SuppressWarnings("unchecked") DocumentDescriptor<T> documentDescriptor = (DocumentDescriptor<T>)this.documentDescriptors.get(contentType);
 		if(documentDescriptor == null) {
-			documentDescriptor = this.documentDescriptorFactory.createDocumentDescriptor(this, contentType);
+			documentDescriptor = this.documentDescriptorFactory.createDocumentDescriptor(this, requestedType, contentType);
 			this.documentDescriptors.put(contentType, documentDescriptor);
 		}
 		return documentDescriptor;
-	}
-
-	public MessageBodyHandler getMessageBodyHandler(final HttpResponse response) {
-		MessageBodyHandler messageBodyHandler = this.messageBodyHandlers.get(response.getContentType());
-		if(messageBodyHandler == null) {
-			messageBodyHandler = this.messageBodyHandlerFactory.createHandler(response);
-			this.messageBodyHandlers.put(response.getContentType(), messageBodyHandler);
-		}
-		return messageBodyHandler;
 	}
 
 	public long getMaxAgeInCache() {

@@ -5,15 +5,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import net.codesup.restbinder.client.ClientSession;
 import net.codesup.restbinder.client.DocumentDescriptor;
 import net.codesup.restbinder.client.DocumentDescriptorFactory;
 import net.codesup.restbinder.client.LinkDescriptor;
-import net.codesup.restbinder.client.RestBinderException;
+import net.codesup.restbinder.client.PlainTextDocumentMarshaller;
+import net.codesup.restbinder.client.util.RestBinderException;
 import net.codesup.restbinder.client.WebDocument;
-import net.codesup.restbinder.client.http.JaxbMediaType;
 import net.codesup.restbinder.client.http.MediaType;
 import net.codesup.restbinder.client.util.Func1;
 
@@ -21,6 +22,15 @@ import net.codesup.restbinder.client.util.Func1;
  * @author Mirko Klemm 2015-09-24
  */
 public class JaxbDocumentDescriptorFactory implements DocumentDescriptorFactory {
+	private final JaxbMediaType<Void> objectMediaType;
+	private final JaxbDocumentMarshaller marshaller;
+	private final PlainTextDocumentMarshaller plainTextDocumentMarshaller = new PlainTextDocumentMarshaller();
+
+	public JaxbDocumentDescriptorFactory(final String vendor) {
+		this.objectMediaType = new JaxbMediaType<>(vendor, null);
+		this.marshaller = new JaxbDocumentMarshaller(this.objectMediaType);
+	}
+
 	private static Method getMethod(final Class<?> cls, final String name) {
 		try {
 			return cls.getMethod(name);
@@ -30,14 +40,18 @@ public class JaxbDocumentDescriptorFactory implements DocumentDescriptorFactory 
 	}
 
 	@Override
-	public <T> DocumentDescriptor<T> createDocumentDescriptor(final ClientSession clientSession, final MediaType mediaType) {
-		final JaxbMediaType<T> contentType = new JaxbMediaType<>(mediaType);
-		final List<LinkDescriptor<T, ?>> linkDescriptors = new ArrayList<>();
-		findLinkDescriptors(linkDescriptors, contentType.getJaxbClass());
-		return new DocumentDescriptor<>(clientSession, contentType, linkDescriptors);
+	public <T> DocumentDescriptor<T> createDocumentDescriptor(final ClientSession clientSession, final Class<T> requestedType, final MediaType contentType) {
+		if(contentType != null && contentType.matchesType(this.objectMediaType)) {
+			final JaxbMediaType<T> jaxbContentType = new JaxbMediaType<>(contentType);
+			final List<LinkDescriptor<T>> linkDescriptors = new ArrayList<>();
+			findLinkDescriptors(linkDescriptors, jaxbContentType.getJaxbClass());
+			return new DocumentDescriptor<>(clientSession, jaxbContentType, linkDescriptors, this.marshaller);
+		} else {
+			return new DocumentDescriptor<>(clientSession, contentType, Collections.<LinkDescriptor<T>>emptyList(), this.plainTextDocumentMarshaller);
+		}
 	}
 
-	private <T> void findLinkDescriptors(final List<LinkDescriptor<T, ?>> linkDescriptors, final Class<? super T> type) {
+	private <T> void findLinkDescriptors(final List<LinkDescriptor<T>> linkDescriptors, final Class<? super T> type) {
 		if (type.getSuperclass() != null) {
 			findLinkDescriptors(linkDescriptors, type.getSuperclass());
 		}
@@ -48,12 +62,14 @@ public class JaxbDocumentDescriptorFactory implements DocumentDescriptorFactory 
 					|| fieldType.isEnum())) {
 				final Method hrefGetter = getMethod(fieldType, "getHref");
 				if (hrefGetter != null) {
-					final Func1<URI, WebDocument<T>> hrefGet = new UriGetter<>(hrefGetter);
+					final Func1<URI, WebDocument<T>> hrefGet = new UriGetter<>(field, hrefGetter);
 					final Method titleGetter = getMethod(fieldType, "getTitle");
-					final Func1<String, WebDocument<T>> titleGet = titleGetter == null ? new Getter<T>(null) : new StringGetter<T>(titleGetter);
+					final Func1<String, WebDocument<T>> titleGet = titleGetter == null ? new Getter<T>(null) : new StringGetter<T>(field, titleGetter);
 					final Method roleGetter = getMethod(fieldType, "getRole");
-					final Func1<String, WebDocument<T>> roleGet = roleGetter == null ? new Getter<T>(field.getName()) : new StringGetter<T>(roleGetter);
-					final LinkDescriptor<T, ?> linkDescriptor = new LinkDescriptor<>(Object.class, new LinkDescriptor.Multiplicity(0, 1), hrefGet, titleGet, roleGet);
+					final Func1<String, WebDocument<T>> roleGet = roleGetter == null ? new Getter<T>(field.getName()) : new StringGetter<T>(field, roleGetter);
+					final Method arcRoleGetter = getMethod(fieldType, "getArcrole");
+					final Func1<String, WebDocument<T>> arcRoleGet = arcRoleGetter == null ? new Getter<T>(field.getName()) : new StringGetter<T>(field, arcRoleGetter);
+					final LinkDescriptor<T> linkDescriptor = new LinkDescriptor<>(fieldType, new LinkDescriptor.Multiplicity(0, 1), hrefGet, titleGet, roleGet, arcRoleGet);
 					linkDescriptors.add(linkDescriptor);
 				}
 			}
@@ -61,16 +77,19 @@ public class JaxbDocumentDescriptorFactory implements DocumentDescriptorFactory 
 	}
 
 	private static final class UriGetter<P> implements Func1<URI, WebDocument<P>> {
+		private final Field linkField;
 		private final Method method;
 
-		public UriGetter(final Method method) {
+		public UriGetter(final Field linkField, final Method method) {
+			this.linkField = linkField;
 			this.method = method;
+			this.linkField.setAccessible(true);
 		}
 
 		@Override
 		public URI eval(final WebDocument<P> c) {
 			try {
-				final Object o = this.method.invoke(c);
+				final Object o = this.method.invoke(this.linkField.get(c.getContent()));
 				return o == null ? null : URI.create(o.toString());
 			} catch (final InvocationTargetException itx) {
 				throw new RestBinderException(itx.getTargetException());
@@ -81,16 +100,19 @@ public class JaxbDocumentDescriptorFactory implements DocumentDescriptorFactory 
 	}
 
 	private static final class StringGetter<P> implements Func1<String, WebDocument<P>> {
+		private final Field linkField;
 		private final Method method;
 
-		public StringGetter(final Method method) {
+		public StringGetter(final Field linkField, final Method method) {
+			this.linkField = linkField;
 			this.method = method;
+			this.linkField.setAccessible(true);
 		}
 
 		@Override
 		public String eval(final WebDocument<P> c) {
 			try {
-				final Object o = this.method.invoke(c.getContent());
+				final Object o = this.method.invoke(this.linkField.get(c.getContent()));
 				return o == null ? null : o.toString();
 			} catch (final InvocationTargetException itx) {
 				throw new RestBinderException(itx.getTargetException());
@@ -112,6 +134,4 @@ public class JaxbDocumentDescriptorFactory implements DocumentDescriptorFactory 
 			return this.value;
 		}
 	}
-
-	;
 }

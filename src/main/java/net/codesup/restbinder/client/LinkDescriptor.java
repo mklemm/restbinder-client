@@ -7,31 +7,34 @@ import net.codesup.restbinder.client.util.Func1;
 /**
  * Created by klemm0 on 2015-09-22.
  */
-public class LinkDescriptor<P, S> {
-	private final Class<S> supplierType;
+public class LinkDescriptor<P> {
+	private final Class<?> linkType;
 	private final Multiplicity multiplicity;
 	private final Func1<URI, WebDocument<P>> hrefGetter;
 	private final Func1<String, WebDocument<P>> titleGetter;
 	private final Func1<String, WebDocument<P>> roleGetter;
+	private final Func1<String, WebDocument<P>> arcRoleGetter;
 
-	public LinkDescriptor(final Class<S> supplierType, final Multiplicity multiplicity, final Func1<URI, WebDocument<P>> hrefGetter, final Func1<String, WebDocument<P>> titleGetter, final Func1<String, WebDocument<P>> roleGetter) {
-		this.supplierType = supplierType;
+	public LinkDescriptor(final Class<?> linkType, final Multiplicity multiplicity, final Func1<URI, WebDocument<P>> hrefGetter, final Func1<String, WebDocument<P>> titleGetter, final Func1<String, WebDocument<P>> roleGetter, final Func1<String, WebDocument<P>> arcRoleGetter) {
+		this.linkType = linkType;
 		this.multiplicity = multiplicity;
 		this.hrefGetter = hrefGetter;
 		this.titleGetter = titleGetter;
 		this.roleGetter = roleGetter;
+		this.arcRoleGetter = arcRoleGetter;
 	}
 
-	public Class<S> getSupplierType() {
-		return this.supplierType;
+	public Class<?> getLinkType() {
+		return this.linkType;
 	}
+
 
 	public Multiplicity getMultiplicity() {
 		return this.multiplicity;
 	}
 
-	public Link<P, S> createLink(final WebDocument<P> parent) {
-		return new Link<>(this, parent, this.hrefGetter.eval(parent), this.titleGetter.eval(parent), this.roleGetter.eval(parent));
+	public Link<P> createLink(final WebDocument<P> parent) {
+		return new Link<>(this, parent, this.hrefGetter.eval(parent), this.titleGetter.eval(parent), this.roleGetter.eval(parent), this.arcRoleGetter.eval(parent));
 	}
 
 	public static class Multiplicity {

@@ -13,6 +13,11 @@ import net.codesup.restbinder.client.util.Messages;
  * @author Mirko Klemm 2015-09-22
  */
 public class MediaType {
+	public static final Messages MSG = new Messages(MediaType.class);
+	private static final String TCHAR = "[a-zA-Z0-9!#\\$%&'\\*\\+\\-\\.\\^_`\\|~]"; // chars allowed in RFC7231 "token" type
+	private static final String PARAMETER = "\\s*;\\s*(" + MediaType.TCHAR + "+)=\"?(" + MediaType.TCHAR + "+)\"?";
+	private static final Pattern PARAMETER_PATTERN = Pattern.compile(MediaType.PARAMETER);
+	private static final Pattern MEDIA_TYPE_PATTERN = Pattern.compile("(" + MediaType.TCHAR + "+)/(" + MediaType.TCHAR + "+)((?:"+ MediaType.PARAMETER +")*)");
 	public static final MediaType APPLICATION_XML = MediaType.valueOf("application/xml");
 	public static final MediaType TEXT_XML = MediaType.valueOf("text/xml");
 	public static final MediaType APPLICATION_JSON = MediaType.valueOf("application/json");
@@ -21,9 +26,6 @@ public class MediaType {
 	public static final MediaType APPLICATION_X_WWW_FORM_URLENCODED = MediaType.valueOf("application/x-www-form-urlencoded");
 	public static final MediaType XHTML = MediaType.valueOf("application/xhtml+xml");
 	public static final MediaType TEXT_HTML = MediaType.valueOf("text/html");
-
-	private static final String TCHAR = "[a-zA-Z0-9!#\\$%&'\\*\\+\\-\\.\\^_`\\|~]"; // chars allowed in RFC7230 "token" type
-	private static final Pattern MEDIA_TYPE = Pattern.compile("(" + MediaType.TCHAR + "+)/(" + MediaType.TCHAR + "+)(?:\\s*;\\s*(" + MediaType.TCHAR + "+)\\s*=\\s*\"?(" + MediaType.TCHAR + "+)\"?)*");
 	private final String type;
 	private final String subType;
 	private final Map<String, String> parameters;
@@ -32,9 +34,29 @@ public class MediaType {
 		this.type = type;
 		this.subType = subType;
 		if (parameters.containsKey("q")) {
-			throw new IllegalArgumentException(Messages.get(MediaType.class, "paramQNotAllowed"));
+			throw new IllegalArgumentException(MSG.get("paramQNotAllowed"));
 		}
 		this.parameters = Collections.unmodifiableMap(new TreeMap<>(parameters));
+	}
+
+	public static MediaType valueOf(final String stringRep) {
+		final Matcher matcher = MediaType.MEDIA_TYPE_PATTERN.matcher(stringRep);
+		if (matcher.matches()) {
+			final String type = matcher.group(1);
+			final String subType = matcher.group(2);
+			final Map<String, String> params = new LinkedHashMap<>();
+			if(matcher.groupCount() > 3) {
+				final String parameters = matcher.group(3);
+				final Matcher paramMatcher = MediaType.PARAMETER_PATTERN.matcher(parameters);
+				while (paramMatcher.find()) {
+					final String paramName = paramMatcher.group(1);
+					params.put(paramName, paramMatcher.group(2));
+				}
+			}
+			return new MediaType(type, subType, params);
+		} else {
+			throw new IllegalArgumentException(MSG.get("invalidMediaTypeString", stringRep));
+		}
 	}
 
 	public String getType() {
@@ -54,10 +76,10 @@ public class MediaType {
 	}
 
 	public boolean matchesType(final MediaType other) {
-		return other.type.equals(this.type) && other.subType.equals(this.subType)
+		return other != null && (other.type.equals(this.type) && other.subType.equals(this.subType)
 				|| other.subType.equals("*") && this.type.equals(other.type)
 				|| this.subType.equals("*") && other.type.equals(this.type)
-				|| this.type.equals("*") || other.type.equals("*");
+				|| this.type.equals("*") || other.type.equals("*"));
 	}
 
 	public boolean matchesType(final String otherString) {
@@ -103,23 +125,5 @@ public class MediaType {
 			sb.append(parameter.getValue());
 		}
 		return sb.toString();
-	}
-
-	public static MediaType valueOf(final String stringRep) {
-		final Matcher matcher = MediaType.MEDIA_TYPE.matcher(stringRep);
-		if (matcher.matches()) {
-			final String type = matcher.find(1) ? matcher.group() : null;
-			final String subType = matcher.find() ? matcher.group() : null;
-			final Map<String, String> params = new LinkedHashMap<>();
-			while (matcher.find()) {
-				final String paramName = matcher.group();
-				if (matcher.find()) {
-					params.put(paramName, matcher.group());
-				}
-			}
-			return new MediaType(type, subType, params);
-		} else {
-			throw new IllegalArgumentException(Messages.get(MediaType.class, "invalidMediaTypeString", stringRep));
-		}
 	}
 }

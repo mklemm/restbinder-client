@@ -1,10 +1,11 @@
-package net.codesup.restbinder.client.http;
+package net.codesup.restbinder.client.jaxb;
 
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
 
-import net.codesup.restbinder.client.RestBinderException;
+import net.codesup.restbinder.client.util.RestBinderException;
+import net.codesup.restbinder.client.http.MediaType;
 import net.codesup.restbinder.client.util.ThreadSafeMessageFormat;
 
 /**
@@ -12,7 +13,7 @@ import net.codesup.restbinder.client.util.ThreadSafeMessageFormat;
  */
 public class JaxbMediaType<T> extends MediaType {
 	public static final String TYPE = "application";
-	public static final ThreadSafeMessageFormat SUB_TYPE_FORMAT  = new ThreadSafeMessageFormat("x-vnd-{0}-object+xml");
+	public static final ThreadSafeMessageFormat SUB_TYPE_FORMAT  = new ThreadSafeMessageFormat("x-vnd.{0}-object+xml");
 	public static final String DEFAULT_VENDOR = "rb";
 
 	private final Class<T> jaxbClass;

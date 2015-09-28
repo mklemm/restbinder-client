@@ -7,11 +7,21 @@ import java.util.ResourceBundle;
  * @author Mirko Klemm 2015-09-22
  */
 public class Messages {
-	public static String get(final Class<?> parentClass, final String key) {
-		return ResourceBundle.getBundle(parentClass.getName().replace('.','/')).getString(key);
+	private final ResourceBundle resourceBundle;
+
+	public Messages(final Class<?> parentClass) {
+		this.resourceBundle = ResourceBundle.getBundle(parentClass.getName());
 	}
 
-	public static String get(final Class<?> parentClass, final String key, final String... params) {
-		return MessageFormat.format(ResourceBundle.getBundle(parentClass.getName().replace('.','/')).getString(key), params);
+	public Messages(final Object parentObject) {
+		this(parentObject.getClass());
+	}
+
+	public String get(final String key) {
+		return this.resourceBundle.getString(key);
+	}
+
+	public String get(final String key, final String... params) {
+		return MessageFormat.format(this.resourceBundle.getString(key), params);
 	}
 }

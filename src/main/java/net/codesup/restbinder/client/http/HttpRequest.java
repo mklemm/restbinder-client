@@ -2,7 +2,10 @@ package net.codesup.restbinder.client.http;
 
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,11 +21,11 @@ public class HttpRequest {
 	private final long contentLength;
 	private final int connectTimeout;
 	private final int readTimeout;
-	private final Map<String, Header> headers;
+	private final List<HeaderField> headers;
 	private final String method;
 	private final URI uri;
 
-	private HttpRequest(final String method, final URI uri, final boolean allowUserInteraction, final boolean doInput, final boolean doOutput, final long ifModifiedSince, final boolean useCaches, final int chunkSize, final long contentLength, final int connectTimeout, final int readTimeout, final Map<String, Header> headers) {
+	private HttpRequest(final String method, final URI uri, final boolean allowUserInteraction, final boolean doInput, final boolean doOutput, final long ifModifiedSince, final boolean useCaches, final int chunkSize, final long contentLength, final int connectTimeout, final int readTimeout, final List<HeaderField> headers) {
 		this.allowUserInteraction = allowUserInteraction;
 		this.doInput = doInput;
 		this.doOutput = doOutput;
@@ -41,7 +44,7 @@ public class HttpRequest {
 		return new Builder();
 	}
 
-	public Map<String, Header> getHeaders() {
+	public List<HeaderField> getHeaders() {
 		return this.headers;
 	}
 
@@ -93,8 +96,12 @@ public class HttpRequest {
 		return this.useCaches;
 	}
 
+	public boolean hasContent() {
+		return this.contentLength > -1 || this.chunkSize > -1;
+	}
+
 	public static class Builder {
-		private final Map<String, Header> headers;
+		private final Map<String, HeaderField> headers;
 		private boolean allowUserInteraction = HttpURLConnection.getDefaultAllowUserInteraction();
 		private boolean doInput = true;
 		private boolean doOutput = false;
@@ -102,10 +109,10 @@ public class HttpRequest {
 		private boolean useCaches = true;
 		private String method;
 		private URI uri;
-		private long contentLength;
-		private int readTimeout;
-		private int connectTimeout;
-		private int chunkSize;
+		private long contentLength = -1;
+		private int readTimeout = -1;
+		private int connectTimeout = -1;
+		private int chunkSize = -1;
 
 		private Builder() {
 			this.headers = new LinkedHashMap<>();
@@ -114,7 +121,7 @@ public class HttpRequest {
 		private Builder(final HttpRequest other) {
 			this.method = other.method;
 			this.uri = other.uri;
-			this.headers = new LinkedHashMap<>(other.getHeaders());
+			this.headers = mapHeaders(other.getHeaders());
 			this.allowUserInteraction = other.allowUserInteraction;
 			this.doInput = other.doInput;
 			this.doOutput = other.doOutput;
@@ -122,12 +129,41 @@ public class HttpRequest {
 			this.useCaches = other.useCaches;
 		}
 
-		public Builder addHeader(final Header... newHeaders) {
-			for (final Header header : newHeaders) {
-				final Header existingHeader = this.headers.get(header.getKey());
-				final Header newHeader = existingHeader == null ? new Header(header.getKey(), header.getValues()) : Header.newBuilder(header.getKey()).addValue(existingHeader.getValues()).addValue(header.getValues()).build();
-				this.headers.put(header.getKey(), newHeader);
+		private static Map<String, HeaderField> mapHeaders(final Iterable<HeaderField> headerList) {
+			final Map<String, HeaderField> headers = new LinkedHashMap<>();
+			for (final HeaderField headerField : headerList) {
+				headers.put(headerField.getKey(), headerField);
 			}
+			return headers;
+		}
+
+		private static List<HeaderField> unmapHeaders(final Map<String, HeaderField> headerMap) {
+			return new ArrayList<>(headerMap.values());
+		}
+
+		public Builder addHeader(final HeaderField... newHeaderFields) {
+			return addHeader(Arrays.asList(newHeaderFields));
+		}
+
+		public Builder withHeader(final HeaderField... newHeaderFields) {
+			return withHeader(Arrays.asList(newHeaderFields));
+		}
+
+		public Builder addHeader(final Iterable<HeaderField> newHeaderFields) {
+			for (final HeaderField headerField : newHeaderFields) {
+				final HeaderField existingHeaderField = this.headers.get(headerField.getKey());
+				final HeaderField.Builder headerBuilder = HeaderField.newBuilder(headerField.getKey());
+				if (existingHeaderField != null) {
+					headerBuilder.addValue(existingHeaderField.getValues());
+				}
+				headerBuilder.addValue(headerField.getValues()).build();
+				this.headers.put(headerField.getKey(), headerBuilder.build());
+			}
+			return this;
+		}
+
+		public Builder withHeader(final Iterable<HeaderField> newHeaderFields) {
+			this.headers.putAll(mapHeaders(newHeaderFields));
 			return this;
 		}
 
@@ -156,28 +192,42 @@ public class HttpRequest {
 			return this;
 		}
 
-		public Builder addHeader(final String key, final Object... values) {
-			return addHeader(new Header(key, values));
+		public Builder addHeader(final String key, final String... values) {
+			return addHeader(HeaderField.newBuilder(key).addValue(values).build());
+		}
+
+		public Builder withHeader(final String key, final String... values) {
+			return withHeader(HeaderField.newBuilder(key).addValue(values).build());
+		}
+
+		public Builder addAccept(final Accept<MediaType>... accept) {
+			return addHeader(HeaderField.newBuilder(HeaderField.ACCEPT).addValue(accept).build());
 		}
 
 		public Builder withAccept(final Accept<MediaType>... accept) {
-			return addHeader(Header.ACCEPT, accept);
+			this.headers.remove(HeaderField.ACCEPT);
+			return addAccept(accept);
+		}
+
+		public Builder addAccept(final MediaType... accept) {
+			return addHeader(HeaderField.newBuilder(HeaderField.ACCEPT).addValue(accept).build());
 		}
 
 		public Builder withAccept(final MediaType... accept) {
-			return addHeader(Header.ACCEPT, accept);
+			this.headers.remove(HeaderField.ACCEPT);
+			return addAccept(accept);
 		}
 
 		public Builder withAcceptEncoding(final Accept<ContentCoding>... accept) {
-			return addHeader(Header.ACCEPT_ENCODING, accept);
+			return addHeader(HeaderField.newBuilder(HeaderField.ACCEPT_ENCODING).addValue(accept).build());
 		}
 
 		public Builder withAcceptEncoding(final ContentCoding... accept) {
-			return addHeader(Header.ACCEPT_ENCODING, accept);
+			return addHeader(HeaderField.newBuilder(HeaderField.ACCEPT_ENCODING).addValue(accept).build());
 		}
 
 		public Builder withContentType(final MediaType contentType) {
-			return addHeader(Header.CONTENT_TYPE, contentType);
+			return addHeader(HeaderField.newBuilder(HeaderField.CONTENT_TYPE).addValue(contentType).build());
 		}
 
 		public Builder withContentLength(final long newContentLength) {
@@ -201,7 +251,7 @@ public class HttpRequest {
 		}
 
 		public Builder withContentEncoding(final ContentCoding contentCoding) {
-			return addHeader(Header.CONTENT_ENCODING, contentCoding);
+			return addHeader(HeaderField.newBuilder(HeaderField.CONTENT_ENCODING).addValue(contentCoding).build());
 		}
 
 		public Builder withUri(final URI newUri) {
@@ -215,7 +265,7 @@ public class HttpRequest {
 		}
 
 		public HttpRequest build() {
-			return new HttpRequest(this.method, this.uri, this.allowUserInteraction, this.doInput, this.doOutput, this.ifModifiedSince, this.useCaches, this.chunkSize, this.contentLength, this.connectTimeout, this.readTimeout, this.headers);
+			return new HttpRequest(this.method, this.uri, this.allowUserInteraction, this.doInput, this.doOutput, this.ifModifiedSince, this.useCaches, this.chunkSize, this.contentLength, this.connectTimeout, this.readTimeout, unmapHeaders(this.headers));
 		}
 	}
 }

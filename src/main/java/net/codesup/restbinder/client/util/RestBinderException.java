@@ -1,4 +1,4 @@
-package net.codesup.restbinder.client;
+package net.codesup.restbinder.client.util;
 
 /**
  * @author Mirko Klemm 2015-09-23

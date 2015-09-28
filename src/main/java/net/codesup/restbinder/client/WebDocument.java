@@ -13,7 +13,7 @@ public class WebDocument<T> {
 	private final DocumentDescriptor<T> documentDescriptor;
 	private final URI uri;
 	private final T content;
-	private final Map<String,Link<T,?>> links;
+	private final Map<String,Link<T>> links;
 	private final Date loadedAt;
 
 	WebDocument(final DocumentDescriptor<T> documentDescriptor, final URI uri, final T content) {
@@ -32,8 +32,20 @@ public class WebDocument<T> {
 		return this.content;
 	}
 
-	public Map<String,Link<T,?>> getLinks() {
+	public Map<String, Link<T>> getLinks() {
 		return this.links;
+	}
+
+	public Link<T> getLink(final String role) {
+		return this.links.get(role);
+	}
+
+	public <S> WebDocument<S> resolve(final Class<S> supplierType, final String role) {
+		return getLink(role).resolve(supplierType);
+	}
+
+	public WebDocument<?> resolve(final String role) {
+		return getLink(role).resolve(Object.class);
 	}
 
 	public DocumentDescriptor<T> getDocumentDescriptor() {
@@ -48,10 +60,10 @@ public class WebDocument<T> {
 		return System.currentTimeMillis() - this.loadedAt.getTime() > this.documentDescriptor.getMaxAgeInCache();
 	}
 
-	private Map<String,Link<T,?>> parseLinks() {
-		final Map<String,Link<T,?>> links = new LinkedHashMap<>();
-		for(final LinkDescriptor<T,?> linkDescriptor : this.documentDescriptor.getLinkDescriptors()) {
-			final Link<T,?> link = linkDescriptor.createLink(this);
+	private Map<String,Link<T>> parseLinks() {
+		final Map<String,Link<T>> links = new LinkedHashMap<>();
+		for(final LinkDescriptor<T> linkDescriptor : this.documentDescriptor.getLinkDescriptors()) {
+			final Link<T> link = linkDescriptor.createLink(this);
 			links.put(link.getRole(), link);
 		}
 		return links;

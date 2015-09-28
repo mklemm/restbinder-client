@@ -7,45 +7,43 @@ import java.util.Map;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.transform.stream.StreamSource;
 
-import net.codesup.restbinder.client.ClientSession;
 import net.codesup.restbinder.client.DocumentDescriptor;
-import net.codesup.restbinder.client.MessageBodyHandler;
-import net.codesup.restbinder.client.RestBinderException;
+import net.codesup.restbinder.client.DocumentMarshaller;
+import net.codesup.restbinder.client.util.RestBinderException;
 import net.codesup.restbinder.client.WebDocument;
 import net.codesup.restbinder.client.http.HttpResponse;
-import net.codesup.restbinder.client.http.JaxbMediaType;
 
 /**
  * @author Mirko Klemm 2015-09-22
  */
-public class JaxbMessageBodyHandler implements MessageBodyHandler {
+public class JaxbDocumentMarshaller implements DocumentMarshaller {
 	private static final Map<Class<?>, JAXBContext> JAXB_CONTEXT_POOL = new HashMap<>();
 
 	private synchronized static JAXBContext getJaxbContext(final Class<?> contentClass) throws JAXBException {
-		JAXBContext jaxbContext = JaxbMessageBodyHandler.JAXB_CONTEXT_POOL.get(contentClass);
+		JAXBContext jaxbContext = JaxbDocumentMarshaller.JAXB_CONTEXT_POOL.get(contentClass);
 		if(jaxbContext == null) {
 			jaxbContext = JAXBContext.newInstance(contentClass);
-			JaxbMessageBodyHandler.JAXB_CONTEXT_POOL.put(contentClass, jaxbContext);
+			JaxbDocumentMarshaller.JAXB_CONTEXT_POOL.put(contentClass, jaxbContext);
 		}
 		return jaxbContext;
 	}
 
 	private final JaxbMediaType<Void> objectMediaType;
 
-	public JaxbMessageBodyHandler(final JaxbMediaType<Void> objectMediaType) {
+	public JaxbDocumentMarshaller(final JaxbMediaType<Void> objectMediaType) {
 		this.objectMediaType = objectMediaType;
 	}
 
 	@Override
-	public <T> WebDocument<T> handle(final ClientSession clientSession, final HttpResponse response) {
+	public <T> WebDocument<T> unmarshal(final DocumentDescriptor<T> documentDescriptor, final HttpResponse response) {
 		try (final InputStream inputStream = response.getInputStream()){
-			final JaxbMediaType<T> contentType = objectMediaType.match(response.getContentType());
+			final JaxbMediaType<T> contentType = this.objectMediaType.match(response.getContentType());
 			if (contentType != null) {
-				final DocumentDescriptor<T> documentDescriptor = clientSession.getDocumentDescriptor(contentType);
 				final Unmarshaller unmarshaller = getJaxbContext(contentType.getJaxbClass()).createUnmarshaller();
-				@SuppressWarnings("unchecked") final T content = (T)unmarshaller.unmarshal(inputStream);
-				return documentDescriptor.createDocument(response.getUri(), content);
+				@SuppressWarnings("unchecked") final T content = unmarshaller.unmarshal(new StreamSource(inputStream), contentType.getJaxbClass()).getValue();
+				return documentDescriptor.createDocument(response.getRequest().getUri(), content);
 			} else {
 				return null;
 			}
