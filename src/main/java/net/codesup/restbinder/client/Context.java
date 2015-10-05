@@ -341,11 +341,16 @@
  */
 package net.codesup.restbinder.client;
 
-import net.codesup.restbinder.client.http.HttpResponse;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * @author Mirko Klemm 2015-09-24
+ * @author Mirko Klemm 2015-09-30
  */
-public interface DocumentMarshaller {
-	<T> WebDocument<T> unmarshal(final DocumentDescriptor<T> documentDescriptor, final HttpResponse response);
+@Target({ElementType.FIELD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Context {
+
 }
